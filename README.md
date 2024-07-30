@@ -59,7 +59,16 @@ PM2 enhances dnclear's reliability by managing application processes, handling a
 ## Configuration
 
 - The server runs on port `3131` by default.
-- The API token used for authentication is defined as `secret_key` in the code. You can change this to any value you prefer.
+- The API token used for authentication is securely loaded from an `.env` file.
+- By default, the path to the `.env` file is `/var/www/envfiles` and the file name is `dnclear.env`. You can change these defaults by setting the `ENV_PATH` and `ENV_FILENAME` environment variables.
+- To create the `.env` file, place it in the specified directory and add the following content:
+  ```dotenv
+  SECRET_KEY=your_secret_key_value
+  ```
+- You can run the server with custom path and filename for the `.env` file by setting the `ENV_PATH` and `ENV_FILENAME` environment variables before starting the server:
+  ```bash
+  ENV_PATH=/custom/path ENV_FILENAME=custom.env node your_script.js
+  ```
 
 ## Usage
 
@@ -179,6 +188,33 @@ Follow these steps to integrate PM2 with dnclear:
     pm2 startup
     ```
    Follow the on-screen instructions to configure your system to start PM2 and your applications on boot.
+
+### Endpoint to Handle Go High Level (GHL) Webhook
+
+This endpoint allows you to integrate with Go High Level (GHL) automations. When setting up an automation or workflow in GHL, you can configure a webhook to POST to this endpoint. This ensures that when contacts meet the defined DNC (Do Not Call) conditions in your GHL workflow, they are automatically added to the DNC list in your Redis database.
+
+- **URL:** `/dnc/webhook/ghl`
+- **Method:** `POST`
+- **Headers:** `x-api-key: {apiToken}`
+- **Body:** `{"phone": "1234567890"}` (Adjust according to the actual payload structure from GHL)
+- **Success Response:**
+  - **Code:** 200
+  - **Content:** `{"phone_number": "1234567890", "message": "Phone number added from webhook"}`
+- **Error Responses:**
+  - **Code:** 400
+  - **Content:** `{"error": "Phone number is required"}`
+  - **Code:** 409
+  - **Content:** `{"error": "Phone number already exists"}`
+
+#### Setting Up the GHL Workflow
+
+1. Create an Automation -> Workflow in Go High Level.
+2. Define the conditions for DNC/DND.
+3. Set up a Webhook to POST to `https://(yourserver)/dnc/webhook/ghl`.
+4. Add a custom data field named `x-api-key` with the value `secret_key` to authenticate requests.
+5. Contacts that go through this workflow will be checked and, if not already present, added to the DNC list in the Redis database.
+
+By integrating this endpoint with your GHL workflows, **dnclear** streamlines the process of managing DNC lists, ensuring efficient and automated handling of contact statuses.
 
 ### Managing dnclear with PM2
 

@@ -1,9 +1,19 @@
 const express = require('express');
 const { createClient } = require('redis');
 const bodyParser = require('body-parser');
+const dotenv = require('dotenv');
+const path = require('path');
+
+// Default path and filename for the .env file
+const envPath = process.env.ENV_PATH || '/var/www/envfiles';
+const envFileName = process.env.ENV_FILENAME || 'dnclear.env';
+
+// Load environment variables from the specified .env file
+dotenv.config({ path: path.join(envPath, envFileName) });
+
 const app = express();
 const port = 3131;
-const apiToken = 'secret_key';
+const apiToken = process.env.SECRET_KEY;
 
 app.use(bodyParser.json());
 
@@ -30,9 +40,10 @@ client.on('end', function() {
 
 // Middleware to check API token
 app.use((req, res, next) => {
-    const token = req.headers['x-api-key'];
+    const token = req.headers['x-api-key'] || req.body.customData['x-api-key'];
     if (token !== apiToken) {
-        return res.status(403).json({ error: 'Forbidden' });
+        console.log(req);
+        return res.status(403).json({ error: 'Forbidden' + req });
     }
     next();
 });
@@ -83,6 +94,33 @@ app.post('/dnc/add', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// Endpoint to handle GHL webhook
+app.post('/dnc/webhook/ghl', async (req, res) => {
+    console.log('Received GHL webhook');
+
+    const phoneNumber = req.body.phone; // Adjust this path according to the actual GHL payload structure
+
+    if (!phoneNumber) {
+        console.log('Phone number is missing in webhook payload');
+        return res.status(400).json({ error: 'Phone number is required' });
+    }
+    const sanitizedPhoneNumber = sanitizePhoneNumber(phoneNumber);
+    try {
+        const exists = await client.exists(sanitizedPhoneNumber);
+        if (exists) {
+            console.log('Phone number already exists:', sanitizedPhoneNumber);
+            return res.status(200).json({ sanitizedPhoneNumber: 'Phone number already exists' });
+        }
+        await client.set(sanitizedPhoneNumber, 'true');
+        console.log('Phone number added from webhook:', sanitizedPhoneNumber);
+        res.status(200).json({ phone_number: sanitizedPhoneNumber });
+    } catch (err) {
+        console.log('Error setting phone number in Redis from webhook', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 // Endpoint to check if a phone number is in the DNC list
 app.get('/dnc/check', async (req, res) => {
