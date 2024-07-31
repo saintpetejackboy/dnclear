@@ -5,7 +5,7 @@ const { sanitizePhoneNumber } = require('../utils/helpers');
 const { createObjectCsvWriter } = require('csv-writer');
 const fs = require('fs');
 const path = require('path');
-const os = require('os'); // Import the os module
+const os = require('os'); 
 
 // Middleware for error handling
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -28,7 +28,7 @@ router.post('/add', asyncHandler(async (req, res) => {
 // Endpoint to handle GHL webhook
 router.post('/webhook/ghl', asyncHandler(async (req, res) => {
     console.log('Received GHL webhook');
-    const { phone: phoneNumber } = req.body; // Adjust this path according to the actual GHL payload structure
+    const { phone: phoneNumber } = req.body; 
 
     if (!phoneNumber) {
         console.log('Phone number is missing in webhook payload');
@@ -113,7 +113,7 @@ router.get('/dump-csv', asyncHandler(async (req, res) => {
         allKeys.push(...reply.keys);
     } while (cursor !== '0');
 
-    const tempDir = os.tmpdir(); // Get the temporary directory path
+    const tempDir = os.tmpdir(); 
     const filePath = path.join(tempDir, `redis_dump_${Date.now()}.csv`);
 
     const csvWriter = createObjectCsvWriter({

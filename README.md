@@ -1,6 +1,7 @@
 # dnclear
 
-dnclear is a high-performance API for managing Do Not Call (DNC) lists using Express, Redis, Node.js, and PM2. This application provides a robust solution for adding, checking, removing, and listing phone numbers in a DNC list, with seamless integration capabilities for services like Go High Level (GHL).
+**dnclear** is a high-performance API for managing Do Not Call (DNC) lists using Express, Redis, Node.js, and PM2. This application provides a robust solution for adding, checking, removing, and listing phone numbers in a DNC list, with seamless integration capabilities for services like Go High Level (GHL).
+
 <p align="center">
   <img src="img/DNClear.png" alt="DNClear Image">
 </p>
@@ -22,12 +23,13 @@ dnclear is a high-performance API for managing Do Not Call (DNC) lists using Exp
 ## Features
 
 - Add, check, remove, and list phone numbers in the DNC list
-- High-performance data storage and retrieval using Redis
+- High-performance data storage and retrieval using Redis with paging
 - Asynchronous processing for efficient handling of concurrent requests
 - Secure API authentication
 - Integration with Go High Level (GHL) webhooks
 - Robust error handling and logging
-- Easy deployment and management using PM2
+- Easy deployment and management using 
+- CSV Export / Dump
 
 ## Tech Stack
 
@@ -114,11 +116,11 @@ This endpoint allows you to export all phone numbers from your DNC list into a C
 
 Note: Depending on the size of your DNC list, this operation might take some time to complete. For very large datasets, consider implementing pagination or using a background job for CSV generation.
 
-####All endpoints require the `x-api-key` header for authentication.
+#### All endpoints require the `x-api-key` header for authentication.
 
 ## Go High Level (GHL) Integration
 
-dnclear provides a webhook endpoint for integration with GHL automations:
+**dnclear** provides a webhook endpoint for integration with GHL automations:
 
 - **POST** `/dnc/webhook/ghl`
 - Body: `{"phone": "1234567890"}`
@@ -152,13 +154,29 @@ To ensure high availability and easy management, use PM2:
 
 ## Error Handling
 
-dnclear implements centralized error handling to provide consistent error responses. Common error codes include:
+**dnclear** implements centralized error handling to provide consistent error responses across the application. Here are some key aspects of the error handling:
 
-- 400: Bad Request
-- 403: Forbidden (Invalid API key)
-- 404: Not Found
-- 409: Conflict (e.g., phone number already exists)
-- 500: Internal Server Error
+- **400 Bad Request**: Returned when required data (like a phone number) is missing.
+- **403 Forbidden**: Returned for invalid API keys.
+- **404 Not Found**: Returned when trying to remove a non-existent phone number.
+- **409 Conflict**: Returned when trying to add a phone number that already exists in the DNC list.
+- **500 Internal Server Error**: Returned for unexpected server errors.
+
+### Special Handling for GHL Webhook
+
+The GHL webhook endpoint (`/dnc/webhook/ghl`) has a unique error handling approach:
+
+- If the phone number already exists in the DNC list, it returns a 200 OK status with a message indicating the number already exists. This ensures that the third-party service (GHL) doesn't interpret this as an error, allowing their workflows to continue smoothly.
+- This approach prevents unnecessary alerts or retries from the GHL system while still accurately managing the DNC list.
+
+Example response for an existing number:
+```json
+{
+  "message": "Phone number already exists"
+}
+```
+
+This error handling strategy ensures robust operation of the DNC list while providing seamless integration with GHL so the contacts do not become "stuck" in a workflow.
 
 ## Contributing
 
