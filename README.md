@@ -1,6 +1,9 @@
 # dnclear
 
 dnclear is a high-performance API for managing Do Not Call (DNC) lists using Express, Redis, Node.js, and PM2. This application provides a robust solution for adding, checking, removing, and listing phone numbers in a DNC list, with seamless integration capabilities for services like Go High Level (GHL).
+<p align="center">
+  <img src="img/DNClear.png" alt="DNClear Image">
+</p>
 
 ## Table of Contents
 
