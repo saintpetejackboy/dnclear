@@ -1,252 +1,139 @@
 # dnclear
 
-This project is an API for managing a Do Not Call (DNC) list using Express and Redis. The API provides endpoints to add, check, remove, and list phone numbers in the DNC list.
+dnclear is a high-performance API for managing Do Not Call (DNC) lists using Express, Redis, Node.js, and PM2. This application provides a robust solution for adding, checking, removing, and listing phone numbers in a DNC list, with seamless integration capabilities for services like Go High Level (GHL).
 
 ## Table of Contents
 
+- [Features](#features)
+- [Tech Stack](#tech-stack)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage](#usage)
-- [Endpoints](#endpoints)
+- [API Endpoints](#api-endpoints)
+- [Go High Level (GHL) Integration](#go-high-level-ghl-integration)
+- [Process Management with PM2](#process-management-with-pm2)
 - [Error Handling](#error-handling)
 - [Contributing](#contributing)
 - [License](#license)
 
-## About dnclear
+## Features
 
-### Cutting-Edge Technologies for Superior Performance
+- Add, check, remove, and list phone numbers in the DNC list
+- High-performance data storage and retrieval using Redis
+- Asynchronous processing for efficient handling of concurrent requests
+- Secure API authentication
+- Integration with Go High Level (GHL) webhooks
+- Robust error handling and logging
+- Easy deployment and management using PM2
 
-**dnclear** leverages a modern tech stack to deliver high performance and reliability for managing Do Not Call (DNC) lists. By utilizing **Express**, **Redis**, **Node.js**, and **PM2**, this application ensures fast, asynchronous processing and robust data handling.
+## Tech Stack
 
-#### The Tech Stack
-
-- **Express.js**: A minimal and flexible Node.js web application framework that provides a robust set of features for web and mobile applications. Express is the backbone of dnclear, handling routing and middleware seamlessly.
-- **Redis**: An in-memory data structure store used as a database, cache, and message broker. Redis is known for its lightning-fast read and write operations, making it ideal for managing real-time data and high-performance applications.
-- **Node.js**: A JavaScript runtime built on Chrome's V8 JavaScript engine, enabling server-side scripting. Node.js is known for its event-driven architecture and non-blocking I/O operations, which ensure that dnclear can handle a high volume of concurrent requests efficiently.
-- **PM2**: A powerful process manager for Node.js applications that simplifies deployment, keeps your application running 24/7, and provides advanced monitoring capabilities. PM2 ensures dnclear runs smoothly in production environments by automatically restarting on crashes, balancing load across instances, and providing detailed monitoring and logging.
-
-#### Why Redis?
-
-Redis is a game-changer for applications requiring rapid data access and manipulation. With its in-memory storage, Redis drastically reduces latency, ensuring that dnclear can process requests in milliseconds. This speed translates to immediate responses when adding, checking, or removing phone numbers from the DNC list.
-
-#### Asynchronous Processing
-
-By leveraging Node.js's asynchronous capabilities, dnclear can handle multiple operations simultaneously without compromising performance. This non-blocking architecture ensures that even during peak loads, the system remains responsive and efficient.
-
-#### Scalability and Reliability
-
-Built with scalability in mind, dnclear can easily handle an increasing number of requests by scaling horizontally. The combination of Redis's high throughput and Node.js's asynchronous processing means that dnclear can grow with your needs, ensuring reliability and performance at scale.
-
-#### Robust Process Management with PM2
-
-PM2 enhances dnclear's reliability by managing application processes, handling automatic restarts on crashes, load balancing across multiple instances, and providing comprehensive monitoring tools. This ensures that dnclear remains highly available and performant, even under heavy load, making it a robust solution for DNC list management.
+- **Express.js**: A minimal and flexible Node.js web application framework
+- **Redis**: An in-memory data structure store for high-speed data operations
+- **Node.js**: A JavaScript runtime for server-side scripting
+- **PM2**: A production process manager for Node.js applications
 
 ## Installation
 
 1. Clone the repository:
-    ```bash
-    git clone https://github.com/saintpetejackboy/dnclear.git
-    cd dnclear
-    ```
+   ```bash
+   git clone https://github.com/saintpetejackboy/dnclear.git
+   cd dnclear
+   ```
 
 2. Install dependencies:
-    ```bash
-    npm install
-    ```
+   ```bash
+   npm install
+   ```
 
-3. Ensure you have Redis installed and running on your machine. You can download it from [here](https://redis.io/download).
+3. Ensure Redis is installed and running on your machine. Download it from [here](https://redis.io/download) if needed.
 
 ## Configuration
 
-- The server runs on port `3131` by default.
-- The API token used for authentication is securely loaded from an `.env` file.
-- By default, the path to the `.env` file is `/var/www/envfiles` and the file name is `dnclear.env`. You can change these defaults by setting the `ENV_PATH` and `ENV_FILENAME` environment variables.
-- To create the `.env` file, place it in the specified directory and add the following content:
-  ```dotenv
-  SECRET_KEY=your_secret_key_value
-  ```
-- You can run the server with custom path and filename for the `.env` file by setting the `ENV_PATH` and `ENV_FILENAME` environment variables before starting the server:
-  ```bash
-  ENV_PATH=/custom/path ENV_FILENAME=custom.env node your_script.js
-  ```
+1. Create a `.env` file in the specified directory (default: `/var/www/envfiles/dnclear.env`):
+   ```dotenv
+   SECRET_KEY=your_secret_key_here
+   REDIS_URL=redis://127.0.0.1:6379
+   ```
+
+2. Customize the environment file path and name by setting `ENV_PATH` and `ENV_FILENAME` environment variables if needed.
 
 ## Usage
 
-1. Start the server:
-    ```bash
-    npm start
-    ```
+Start the server:
+```bash
+npm start
+```
 
-2. The server will be running at `http://localhost:3131`.
+The server will run at `http://localhost:3131` by default.
 
-## Endpoints
+## API Endpoints
 
-### Add a phone number to the DNC list
+### Add a phone number
+- **POST** `/dnc/add`
+- Body: `{"phone_number": "1234567890"}`
 
-- **URL:** `/dnc/add`
-- **Method:** `POST`
-- **Headers:** `x-api-key: {apiToken}`
-- **Body:** `{"phone_number": "1234567890"}`
-- **Success Response:**
-    - **Code:** 200
-    - **Content:** `{"phone_number": "1234567890"}`
-- **Error Responses:**
-    - **Code:** 400
-    - **Content:** `{"error": "Phone number is required"}`
-    - **Code:** 409
-    - **Content:** `{"error": "Phone number already exists"}`
+### Check a phone number
+- **GET** `/dnc/check?phone_number=1234567890`
 
-### Check if a phone number is in the DNC list
+### Remove a phone number
+- **DELETE** `/dnc/remove`
+- Body: `{"phone_number": "1234567890"}`
 
-- **URL:** `/dnc/check`
-- **Method:** `GET`
-- **Headers:** `x-api-key: {apiToken}`
-- **Query Params:** `phone_number=1234567890`
-- **Success Response:**
-    - **Code:** 200
-    - **Content:** `{"phone_number": "1234567890", "in_dnc_list": true}`
-- **Error Responses:**
-    - **Code:** 400
-    - **Content:** `{"error": "Phone number is required"}`
+### List all phone numbers
+- **GET** `/dnc?page=1&limit=100`
 
-### Remove a phone number from the DNC list
+All endpoints require the `x-api-key` header for authentication.
 
-- **URL:** `/dnc/remove`
-- **Method:** `DELETE`
-- **Headers:** `x-api-key: {apiToken}`
-- **Body:** `{"phone_number": "1234567890"}`
-- **Success Response:**
-    - **Code:** 200
-    - **Content:** `{"message": "Phone number removed", "phone_number": "1234567890"}`
-- **Error Responses:**
-    - **Code:** 400
-    - **Content:** `{"error": "Phone number is required"}`
-    - **Code:** 404
-    - **Content:** `{"error": "Phone number not found"}`
+## Go High Level (GHL) Integration
 
-### List all phone numbers in the DNC list
+dnclear provides a webhook endpoint for integration with GHL automations:
 
-- **URL:** `/dnc`
-- **Method:** `GET`
-- **Headers:** `x-api-key: {apiToken}`
-- **Success Response:**
-    - **Code:** 200
-    - **Content:** `{"phone_numbers": ["1234567890", "0987654321"]}`
+- **POST** `/dnc/webhook/ghl`
+- Body: `{"phone": "1234567890"}`
 
-### Error Handling
+Configure your GHL workflow to send a POST request to this endpoint when contacts meet your DNC conditions.
 
-Common error responses include:
-- **Code:** 403
-  - **Content:** `{"error": "Forbidden"}`
-- **Code:** 500
-  - **Content:** `{"error": "Redis client is not connected"}`
+## Process Management with PM2
 
-## Enhancing dnclear with PM2
+To ensure high availability and easy management, use PM2:
 
-### Seamless Process Management and Monitoring
+1. Install PM2 globally:
+   ```bash
+   npm install pm2 -g
+   ```
 
-To ensure dnclear runs smoothly in production environments, we recommend using **PM2**, a powerful process manager for Node.js applications. PM2 simplifies deployment, keeps your application running 24/7, and provides advanced monitoring capabilities.
+2. Start dnclear with PM2:
+   ```bash
+   pm2 start dnclear.js --name dnclear
+   ```
 
-#### Why PM2?
+3. Monitor the application:
+   ```bash
+   pm2 monit
+   ```
 
-PM2 offers several advantages for managing Node.js applications:
+4. Set PM2 to start on system boot:
+   ```bash
+   pm2 startup
+   pm2 save
+   ```
 
-- **Automatic Restart**: PM2 automatically restarts your application if it crashes, ensuring minimal downtime.
-- **Load Balancing**: PM2 can balance the load across multiple instances of your application, optimizing performance and resource usage.
-- **Monitoring and Logs**: PM2 provides detailed monitoring and logging, helping you keep track of your application's performance and quickly diagnose issues.
-- **Ease of Use**: PM2's straightforward CLI makes it easy to manage your application, scale instances, and deploy updates.
+## Error Handling
 
-### Setting Up PM2 with dnclear
+dnclear implements centralized error handling to provide consistent error responses. Common error codes include:
 
-Follow these steps to integrate PM2 with dnclear:
-
-1. **Install PM2**:
-    ```bash
-    npm install pm2 -g
-    ```
-
-2. **Start dnclear with PM2**:
-    ```bash
-    pm2 start index.js --name dnclear
-    ```
-   Replace `index.js` with the entry point of your application if it's different.
-
-3. **Monitor Your Application**:
-    ```bash
-    pm2 monit
-    ```
-   This command opens an interactive monitoring dashboard, showing you real-time metrics and logs.
-
-4. **Save Your PM2 Process List**:
-    ```bash
-    pm2 save
-    ```
-   This saves the current process list, allowing PM2 to automatically resurrect your application after a system reboot.
-
-5. **Set PM2 to Start on Boot**:
-    ```bash
-    pm2 startup
-    ```
-   Follow the on-screen instructions to configure your system to start PM2 and your applications on boot.
-
-### Endpoint to Handle Go High Level (GHL) Webhook
-
-This endpoint allows you to integrate with Go High Level (GHL) automations. When setting up an automation or workflow in GHL, you can configure a webhook to POST to this endpoint. This ensures that when contacts meet the defined DNC (Do Not Call) conditions in your GHL workflow, they are automatically added to the DNC list in your Redis database.
-
-- **URL:** `/dnc/webhook/ghl`
-- **Method:** `POST`
-- **Headers:** `x-api-key: {apiToken}`
-- **Body:** `{"phone": "1234567890"}` (Adjust according to the actual payload structure from GHL)
-- **Success Response:**
-  - **Code:** 200
-  - **Content:** `{"phone_number": "1234567890", "message": "Phone number added from webhook"}`
-- **Error Responses:**
-  - **Code:** 400
-  - **Content:** `{"error": "Phone number is required"}`
-  - **Code:** 409
-  - **Content:** `{"error": "Phone number already exists"}`
-
-#### Setting Up the GHL Workflow
-
-1. Create an Automation -> Workflow in Go High Level.
-2. Define the conditions for DNC/DND.
-3. Set up a Webhook to POST to `https://(yourserver)/dnc/webhook/ghl`.
-4. Add a custom data field named `x-api-key` with the value `secret_key` to authenticate requests.
-5. Contacts that go through this workflow will be checked and, if not already present, added to the DNC list in the Redis database.
-
-By integrating this endpoint with your GHL workflows, **dnclear** streamlines the process of managing DNC lists, ensuring efficient and automated handling of contact statuses.
-
-### Managing dnclear with PM2
-
-PM2 makes it easy to manage your dnclear application. Here are some common commands:
-
-- **Restart the Application**:
-    ```bash
-    pm2 restart dnclear
-    ```
-
-- **Stop the Application**:
-    ```bash
-    pm2 stop dnclear
-    ```
-
-- **View Logs**:
-    ```bash
-    pm2 logs dnclear
-    ```
-
-- **Scale the Application**:
-    ```bash
-    pm2 scale dnclear <number_of_instances>
-    ```
-   Replace `<number_of_instances>` with the desired number of instances.
-
-By integrating PM2 with dnclear, you can ensure your application runs smoothly, even under heavy load, and take advantage of powerful monitoring and management features to keep everything running optimally.
+- 400: Bad Request
+- 403: Forbidden (Invalid API key)
+- 404: Not Found
+- 409: Conflict (e.g., phone number already exists)
+- 500: Internal Server Error
 
 ## Contributing
 
-Contributions are welcome! Please fork the repository and submit a pull request.
+Contributions are welcome! Please fork the repository and submit a pull request with your improvements.
 
 ## License
 
 This project is licensed under the MIT License.
+

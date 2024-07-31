@@ -69,38 +69,33 @@ router.delete('/remove', asyncHandler(async (req, res) => {
 
 // Endpoint to retrieve all phone numbers
 router.get('/', asyncHandler(async (req, res) => {
-    try {
-        let cursor = '0';
-        const phoneNumbers = [];
-        const maxIterations = 1000; // Safeguard to prevent infinite loop
-        let iterationCount = 0;
-
-        do {
-            const reply = await client.scan(cursor, 'MATCH', '*', 'COUNT', 100);
-            cursor = reply.cursor.toString();
-            const keys = reply.keys;
-
-            if (!Array.isArray(keys)) {
-                console.error('Expected keys to be an array but got:', typeof keys, 'with keys:', keys);
-                return res.status(500).json({ error: 'Unexpected format for keys' });
-            }
-
-            phoneNumbers.push(...keys.map(key => sanitizePhoneNumber(key)));
-            console.log('Requesting a complete scan...'); // Logging the cursor
-
-            iterationCount++;
-            if (iterationCount > maxIterations) {
-                console.error('Exceeded maximum iterations');
-                return res.status(500).json({ error: 'Exceeded maximum iterations' });
-            }
-
-        } while (cursor !== '0');
-
-        res.status(200).json({ phone_numbers: phoneNumbers });
-    } catch (err) {
-        console.error('Error in SCAN operation:', err);
-        res.status(500).json({ error: err.message });
-    }
-}));
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const startIndex = (page - 1) * limit;
+  
+    let cursor = '0';
+    const phoneNumbers = [];
+    let count = 0;
+  
+    do {
+      const reply = await client.scan(cursor, 'MATCH', '*', 'COUNT', 1000);
+      cursor = reply.cursor.toString();
+      const keys = reply.keys;
+  
+      phoneNumbers.push(...keys.map(key => sanitizePhoneNumber(key)));
+      count += keys.length;
+  
+      if (count >= startIndex + limit) break;
+    } while (cursor !== '0' && phoneNumbers.length < startIndex + limit);
+  
+    const results = phoneNumbers.slice(startIndex, startIndex + limit);
+  
+    res.status(200).json({
+      phone_numbers: results,
+      page,
+      limit,
+      total: count
+    });
+  }));
 
 module.exports = router;
