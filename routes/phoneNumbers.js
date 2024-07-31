@@ -156,4 +156,37 @@ router.get('/dump-csv', asyncHandler(async (req, res) => {
     });
 }));
 
+// Endpoint to add multiple phone numbers
+router.post('/batch-add', asyncHandler(async (req, res) => {
+    const { phone_numbers: phoneNumbers } = req.body;
+    if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+        return res.status(400).json({ error: 'Phone numbers array is required' });
+    }
+    const addedPhoneNumbers = [];
+    for (const phoneNumber of phoneNumbers) {
+        const exists = await isPhoneNumberExists(phoneNumber);
+        if (!exists) {
+            const sanitizedPhoneNumber = await addPhoneNumber(phoneNumber);
+            addedPhoneNumbers.push(sanitizedPhoneNumber);
+        }
+    }
+    res.status(200).json({ added_phone_numbers: addedPhoneNumbers });
+}));
+
+// Endpoint to scan multiple phone numbers
+router.post('/batch-scan', asyncHandler(async (req, res) => {
+    const { phone_numbers: phoneNumbers } = req.body;
+    if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+        return res.status(400).json({ error: 'Phone numbers array is required' });
+    }
+    const matchedPhoneNumbers = [];
+    for (const phoneNumber of phoneNumbers) {
+        const exists = await isPhoneNumberExists(phoneNumber);
+        if (exists) {
+            matchedPhoneNumbers.push(sanitizePhoneNumber(phoneNumber));
+        }
+    }
+    res.status(200).json({ matched_phone_numbers: matchedPhoneNumbers });
+}));
+
 module.exports = router;

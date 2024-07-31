@@ -30,6 +30,7 @@
 - Robust error handling and logging
 - Easy deployment and management using 
 - CSV Export / Dump
+- Batch adding and scanning
 
 ## Tech Stack
 
@@ -99,6 +100,51 @@ The server will run at `http://localhost:3131` by default.
 
 ### List all phone numbers
 - **GET** `/dnc?page=1&limit=100`
+
+### Batch Add Phone Numbers
+- **POST** `/dnc/batch-add`
+- Body: `{"phone_numbers": ["1234567890", "9876543210", ...]}`
+- Adds multiple phone numbers to the DNC list in a single request.
+- Returns the successfully added phone numbers.
+
+Example request:
+```bash
+curl -X POST http://localhost:3131/dnc/batch-add -H "x-api-key: your_secret_key" -H "Content-Type: application/json" -d '{"phone_numbers": ["222-222-2222", "333-333-3333", "444-444-4444"]}'
+```
+
+Example response:
+```json
+{
+  "added_phone_numbers": [
+    "2222222222",
+    "3333333333",
+    "4444444444"
+  ]
+}
+```
+
+### Batch Scan Phone Numbers
+- **POST** `/dnc/batch-scan`
+- Body: `{"phone_numbers": ["1234567890", "9876543210", ...]}`
+- Scans multiple phone numbers against the DNC list and returns the matched numbers.
+- The response includes only the phone numbers found in the DNC list.
+
+Example request:
+```bash
+curl -X POST http://localhost:3131/dnc/batch-scan -H "x-api-key: your_secret_key" -H "Content-Type: application/json" -d '{"phone_numbers": ["222-222-2222", "333-333-3333", "444-444-4444"]}'
+```
+
+Example response:
+```json
+{
+  "matched_phone_numbers": [
+    "2222222222",
+    "3333333333"
+  ]
+}
+```
+
+These batch endpoints allow you to efficiently process multiple phone numbers at once, improving the performance of your application when dealing with large batches of numbers. They complement the existing single phone number endpoints, providing flexibility in how you interact with the DNC list.
 
 ### Dump Redis data to CSV
 - **GET** `/dump-csv`
