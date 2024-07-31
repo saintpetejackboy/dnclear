@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { client } = require('../utils/redisClient');
 const { sanitizePhoneNumber } = require('../utils/helpers');
+const { createObjectCsvWriter } = require('csv-writer');
+const fs = require('fs');
+const path = require('path');
+const os = require('os'); // Import the os module
 
 // Middleware for error handling
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -97,5 +101,44 @@ router.get('/', asyncHandler(async (req, res) => {
       total: count
     });
   }));
+  
+// New endpoint to dump Redis data to CSV
+router.get('/dump-csv', asyncHandler(async (req, res) => {
+    let cursor = '0';
+    const allKeys = [];
+
+    do {
+        const reply = await client.scan(cursor, 'MATCH', '*', 'COUNT', 1000);
+        cursor = reply.cursor.toString();
+        allKeys.push(...reply.keys);
+    } while (cursor !== '0');
+
+    const tempDir = os.tmpdir(); // Get the temporary directory path
+    const filePath = path.join(tempDir, `redis_dump_${Date.now()}.csv`);
+
+    const csvWriter = createObjectCsvWriter({
+        path: filePath,
+        header: [
+            {id: 'phoneNumber', title: 'Phone Number'}
+        ]
+    });
+
+    const data = allKeys.map(key => ({
+        phoneNumber: sanitizePhoneNumber(key)
+    }));
+
+    await csvWriter.writeRecords(data);
+
+    res.download(filePath, 'redis_dump.csv', (err) => {
+        if (err) {
+            console.error('Error downloading file:', err);
+            res.status(500).send('Error downloading file');
+        }
+        // Delete the file after sending
+        fs.unlink(filePath, (unlinkErr) => {
+            if (unlinkErr) console.error('Error deleting file:', unlinkErr);
+        });
+    });
+}));
 
 module.exports = router;

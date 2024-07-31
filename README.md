@@ -86,7 +86,23 @@ The server will run at `http://localhost:3131` by default.
 ### List all phone numbers
 - **GET** `/dnc?page=1&limit=100`
 
-All endpoints require the `x-api-key` header for authentication.
+### Dump Redis data to CSV
+- **GET** `/dump-csv`
+- Generates a CSV file containing all phone numbers stored in Redis
+- The file is automatically downloaded and then deleted from the server
+- No authentication required
+
+This endpoint allows you to export all phone numbers from your DNC list into a CSV file. It's useful for backup purposes or for analyzing your DNC data offline. The process is as follows:
+
+1. The endpoint scans all keys in Redis.
+2. It creates a temporary CSV file with a single column for phone numbers.
+3. All phone numbers are sanitized and written to the CSV file.
+4. The file is sent to the client for download.
+5. After the download is complete, the file is automatically deleted from the server.
+
+Note: Depending on the size of your DNC list, this operation might take some time to complete. For very large datasets, consider implementing pagination or using a background job for CSV generation.
+
+####All endpoints require the `x-api-key` header for authentication.
 
 ## Go High Level (GHL) Integration
 
