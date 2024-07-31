@@ -178,6 +178,23 @@ Example response for an existing number:
 
 This error handling strategy ensures robust operation of the DNC list while providing seamless integration with GHL so the contacts do not become "stuck" in a workflow.
 
+## Redis Storage Limits and Performance
+
+When using Redis to store 10-digit phone numbers, both storage capacity and retrieval performance are critical considerations. Here are the expectations based on different RAM limits:
+
+- **256MB RAM**: Approximately 4.47 million phone numbers
+- **500MB RAM**: Approximately 8.73 million phone numbers
+- **1GB RAM**: Approximately 17.90 million phone numbers
+
+### Performance Expectations
+
+Redis is known for its high performance and low latency. Regardless of the number of phone numbers stored, you can expect:
+
+- **Average Retrieval Time**: Less than 1 millisecond per request
+- **Load Handling**: Tens of thousands of requests per second under optimal conditions
+
+These performance metrics make Redis an excellent choice for managing large volumes of phone numbers with quick and efficient data retrieval.
+
 ## Contributing
 
 Contributions are welcome! Please fork the repository and submit a pull request with your improvements.
