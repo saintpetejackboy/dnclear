@@ -31,10 +31,22 @@ dnclear is a high-performance API for managing Do Not Call (DNC) lists using Exp
 
 ## Tech Stack
 
+- **Node.js**: A JavaScript runtime for server-side scripting
 - **Express.js**: A minimal and flexible Node.js web application framework
 - **Redis**: An in-memory data structure store for high-speed data operations
-- **Node.js**: A JavaScript runtime for server-side scripting
 - **PM2**: A production process manager for Node.js applications
+
+## Packages
+
+- **dotenv**: For managing environment variables
+- **csv-writer**: A library for creating CSV files
+- **body-parser**: Middleware for parsing incoming request bodies
+
+### Node.js Core Modules
+
+- **fs**: File System module for file operations
+- **path**: Module for handling file paths
+- **os**: Operating System module for OS-related operations
 
 ## Installation
 
