@@ -133,7 +133,7 @@ PM2 enhances dnclear's reliability by managing application processes, handling a
     - **Code:** 200
     - **Content:** `{"phone_numbers": ["1234567890", "0987654321"]}`
 
-## Error Handling
+### Error Handling
 
 Common error responses include:
 - **Code:** 403
