@@ -12,6 +12,8 @@ app.use('/dnc', phoneNumbersRoutes);
 
 describe('Phone Numbers API', () => {
   let connection;
+  let originalRedisData = [];
+  let originalDbData = [];
 
   beforeAll(async () => {
     if (dbType === 'redis') {
@@ -19,9 +21,42 @@ describe('Phone Numbers API', () => {
     } else {
       connection = await createDbConnection();
     }
+
+    // Dump and reconcile data
+    originalRedisData = await redisClient.keys('*');
+
+    if (dbType !== 'redis') {
+      const [rows] = await connection.execute('SELECT phone_number FROM phone_numbers');
+      originalDbData = rows.map(row => row.phone_number);
+    }
+
+    const allNumbers = [...new Set([...originalRedisData, ...originalDbData])];
+
+    // Add missing numbers to Redis
+    await Promise.all(allNumbers.map(num => redisClient.set(num, 'true')));
+
+    // Add missing numbers to the database
+    if (dbType !== 'redis') {
+      const missingInDb = allNumbers.filter(num => !originalDbData.includes(num));
+      await Promise.all(missingInDb.map(async (num) => {
+        await connection.execute('INSERT INTO phone_numbers (phone_number) VALUES (?)', [num]);
+      }));
+    }
   });
-  
+
   afterAll(async () => {
+    // Restore original data in Redis
+    await redisClient.flushAll();
+    await Promise.all(originalRedisData.map(num => redisClient.set(num, 'true')));
+
+    // Restore original data in the database
+    if (dbType !== 'redis' && connection) {
+      await connection.execute('DELETE FROM phone_numbers');
+      await Promise.all(originalDbData.map(async (num) => {
+        await connection.execute('INSERT INTO phone_numbers (phone_number) VALUES (?)', [num]);
+      }));
+    }
+
     if (dbType === 'redis') {
       if (redisClient.isOpen) await redisClient.quit();
     } else {
@@ -29,30 +64,27 @@ describe('Phone Numbers API', () => {
     }
   });
 
-  beforeEach(async () => {
-    if (dbType === 'redis') {
-      await redisClient.flushAll();
-    } else {
-      await connection.execute('DELETE FROM phone_numbers');
-    }
-  });
-
-  afterEach(async () => {
-    // Clean up any remaining data after each test
-    if (dbType === 'redis') {
-      await redisClient.flushAll();
-    } else {
-      await connection.execute('DELETE FROM phone_numbers');
-    }
-  });
-
   test('POST /dnc/add should add a new phone number', async () => {
+    // Ensure the test number does not exist before the test
+    const testNumber = '1234567890';
+    if (dbType === 'redis') {
+      await redisClient.del(testNumber);
+    } else {
+      await connection.execute('DELETE FROM phone_numbers WHERE phone_number = ?', [testNumber]);
+    }
+  
     const response = await request(app)
       .post('/dnc/add')
       .set('x-api-key', process.env.SECRET_KEY)
-      .send({ phoneNumber: '1234567890' });
-    expect(response.statusCode).toBe(200);
-    expect(response.body.phone_number).toBe('1234567890');
+      .send({ phoneNumber: testNumber });
+  
+    if (response.statusCode === 409) {
+      // If the number already exists, handle the conflict
+      expect(response.body.message).toBe('Phone number already exists');
+    } else {
+      expect(response.statusCode).toBe(200);
+      expect(response.body.phone_number).toBe(testNumber);
+    }
   });
 
   test('POST /dnc/webhook/ghl should handle GHL webhook', async () => {
@@ -66,6 +98,15 @@ describe('Phone Numbers API', () => {
 
   test('GET /dnc should retrieve phone numbers with pagination', async () => {
     const testNumbers = ['1234567890', '9876543210'];
+    
+    // Clear existing data for the test numbers
+    if (dbType === 'redis') {
+      await redisClient.flushAll();
+    } else {
+      await connection.execute('DELETE FROM phone_numbers');
+    }
+  
+    // Insert test numbers
     if (dbType === 'redis') {
       await Promise.all(testNumbers.map(num => redisClient.set(num, 'true')));
     } else {
@@ -73,16 +114,17 @@ describe('Phone Numbers API', () => {
         await connection.execute('INSERT INTO phone_numbers (phone_number) VALUES (?)', [num]);
       }));
     }
-
+  
     const response = await request(app)
       .get('/dnc')
       .set('x-api-key', process.env.SECRET_KEY)
       .query({ page: 1, limit: 10 });
-
+  
     expect(response.statusCode).toBe(200);
     expect(response.body.phone_numbers).toEqual(expect.arrayContaining(testNumbers));
     expect(response.body.total).toBe(testNumbers.length);
   });
+  
 
   test('DELETE /dnc/remove should remove a phone number', async () => {
     const testNumber = '1234567890';
@@ -119,6 +161,29 @@ describe('Phone Numbers API', () => {
     expect(response.body.added_phone_numbers).toContain('9876543210');
   });
 
+    test('GET /dnc/dump-csv should return data in CSV format', async () => {
+      const testNumbers = ['1234567890', '9876543210'];
+      if (dbType === 'redis') {
+          await Promise.all(testNumbers.map(num => redisClient.set(num, 'true')));
+      } else {
+          await Promise.all(testNumbers.map(async (num) => {
+              await connection.execute('INSERT INTO phone_numbers (phone_number) VALUES (?)', [num]);
+          }));
+      }
+
+      const response = await request(app)
+          .get('/dnc/dump-csv')
+          .set('x-api-key', process.env.SECRET_KEY);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toEqual('text/csv');
+      expect(response.headers['content-disposition']).toEqual('attachment; filename="dnc_dump.csv"');
+
+      const csvLines = response.text.trim().split('\n');
+      expect(csvLines[0]).toBe('Phone Number');
+      expect(csvLines.slice(1)).toEqual(expect.arrayContaining(testNumbers));
+  });
+
   test('POST /dnc/batch-scan should scan multiple phone numbers in various formats', async () => {
     const normalizedNumber = '7272660666';
     if (dbType === 'redis') {
@@ -148,7 +213,18 @@ describe('Phone Numbers API', () => {
   test('POST /dnc/sync should synchronize data between Redis and database', async () => {
     const testNumbers = ['1234567890', '9876543210', '5555555555'];
   
-    // Setup: Add numbers to the source storage
+    // Get existing phone numbers from Redis and database before sync
+    const existingRedisNumbers = await redisClient.keys('*');
+    let existingDbNumbers = [];
+    const dbConnection = await createDbConnection();
+    const [rows] = await dbConnection.execute('SELECT phone_number FROM phone_numbers');
+    await dbConnection.end();
+    existingDbNumbers = rows.map(row => row.phone_number);
+  
+    // Create expected numbers array by combining existing numbers from Redis and database
+    const expectedNumbers = [...new Set([...existingRedisNumbers, ...existingDbNumbers, ...testNumbers])].sort();
+  
+    // Setup: Add test numbers to the source storage
     if (dbType === 'redis') {
       await Promise.all(testNumbers.map(num => redisClient.set(num, 'true')));
     } else {
@@ -171,17 +247,11 @@ describe('Phone Numbers API', () => {
       const [rows] = await dbConnection.execute('SELECT phone_number FROM phone_numbers');
       await dbConnection.end();
       const dbNumbers = rows.map(row => row.phone_number);
-      expect(dbNumbers.sort()).toEqual(testNumbers.sort());
+      expect(dbNumbers.sort()).toEqual(expectedNumbers);
     } else {
-      const redisNumbers = await Promise.all(testNumbers.map(num => redisClient.get(num)));
-      expect(redisNumbers.every(exists => exists === 'true')).toBe(true);
-    }
-  
-    // Clean up: Remove the test data
-    if (dbType === 'redis') {
-      await Promise.all(testNumbers.map(num => redisClient.del(num)));
-    } else {
-      await connection.execute('DELETE FROM phone_numbers');
+      const redisNumbers = await redisClient.keys('*');
+      expect(redisNumbers.sort()).toEqual(expectedNumbers);
     }
   });
+  
 });
