@@ -9,6 +9,12 @@ dotenv.config({ path: path.join(envPath, envFileName) });
 const config = {
     apiToken: process.env.SECRET_KEY,
     redisUrl: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+    dbType: process.env.DB_TYPE,
+    dbHost: process.env.DB_HOST,
+    dbPort: process.env.DB_PORT,
+    dbName: process.env.DB_NAME,
+    dbUser: process.env.DB_USER,
+    dbPassword: process.env.DB_PASSWORD,
 };
 
 if (!config.apiToken) {

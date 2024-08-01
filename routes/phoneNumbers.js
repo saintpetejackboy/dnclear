@@ -2,19 +2,36 @@ const express = require('express');
 const router = express.Router();
 const { client } = require('../utils/redisClient');
 const { sanitizePhoneNumber } = require('../utils/helpers');
-const { createObjectCsvWriter } = require('csv-writer');
+const { createObjectCsvStringifier } = require('csv-writer');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { dbType } = require('../config');
+const { createDbConnection } = require('../utils/dbClient');
 
 // Middleware for error handling
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// Helper function to check if a phone number exists in Redis
-const isPhoneNumberExists = async (phoneNumber) => {
+const addPhoneNumberToDb = async (phoneNumber) => {
+    const sanitizedPhoneNumber = sanitizePhoneNumber(phoneNumber);
+    const connection = await createDbConnection();
+    await connection.execute('INSERT INTO phone_numbers (phone_number) VALUES (?)', [sanitizedPhoneNumber]);
+    await connection.end();
+    return sanitizedPhoneNumber;
+  };
+  
+  const isPhoneNumberExists = async (phoneNumber) => {
     const sanitizedPhoneNumber = sanitizePhoneNumber(phoneNumber);
     return await client.exists(sanitizedPhoneNumber);
-};
+  };
+  
+  const isPhoneNumberExistsInDb = async (phoneNumber) => {
+    const sanitizedPhoneNumber = sanitizePhoneNumber(phoneNumber);
+    const connection = await createDbConnection();
+    const [rows] = await connection.execute('SELECT COUNT(*) as count FROM phone_numbers WHERE phone_number = ?', [sanitizedPhoneNumber]);
+    await connection.end();
+    return rows[0].count > 0;
+  };
 
 // Helper function to add a phone number to Redis
 const addPhoneNumber = async (phoneNumber) => {
@@ -57,11 +74,21 @@ router.post('/add', asyncHandler(async (req, res) => {
     if (!phoneNumber) {
         return res.status(400).json({ error: 'Phone number is required' });
     }
-    const exists = await isPhoneNumberExists(phoneNumber);
+    let exists;
+    if (dbType === 'redis') {
+        exists = await isPhoneNumberExists(phoneNumber);
+    } else {
+        exists = await isPhoneNumberExistsInDb(phoneNumber);
+    }
     if (exists) {
         return res.status(409).json({ error: 'Phone number already exists' });
     }
-    const sanitizedPhoneNumber = await addPhoneNumber(phoneNumber);
+    let sanitizedPhoneNumber;
+    if (dbType === 'redis') {
+        sanitizedPhoneNumber = await addPhoneNumber(phoneNumber);
+    } else {
+        sanitizedPhoneNumber = await addPhoneNumberToDb(phoneNumber);
+    }
     res.status(200).json({ phone_number: sanitizedPhoneNumber });
 }));
 
@@ -74,12 +101,22 @@ router.post('/webhook/ghl', asyncHandler(async (req, res) => {
         console.log('Phone number is missing in webhook payload');
         return res.status(400).json({ error: 'Phone number is required' });
     }
-    const exists = await isPhoneNumberExists(phoneNumber);
+    let exists;
+    if (dbType === 'redis') {
+        exists = await isPhoneNumberExists(phoneNumber);
+    } else {
+        exists = await isPhoneNumberExistsInDb(phoneNumber);
+    }
     if (exists) {
         console.log('Phone number already exists:', phoneNumber);
         return res.status(200).json({ message: 'Phone number already exists' });
     }
-    const sanitizedPhoneNumber = await addPhoneNumber(phoneNumber);
+    let sanitizedPhoneNumber;
+    if (dbType === 'redis') {
+        sanitizedPhoneNumber = await addPhoneNumber(phoneNumber);
+    } else {
+        sanitizedPhoneNumber = await addPhoneNumberToDb(phoneNumber);
+    }
     console.log('Phone number added from webhook:', sanitizedPhoneNumber);
     res.status(200).json({ phone_number: sanitizedPhoneNumber });
 }));
@@ -90,7 +127,12 @@ router.get('/check', asyncHandler(async (req, res) => {
     if (!phoneNumber) {
         return res.status(400).json({ error: 'Phone number is required' });
     }
-    const inDncList = await isPhoneNumberExists(phoneNumber);
+    let inDncList;
+    if (dbType === 'redis') {
+        inDncList = await isPhoneNumberExists(phoneNumber);
+    } else {
+        inDncList = await isPhoneNumberExistsInDb(phoneNumber);
+    }
     res.status(200).json({ phone_number: sanitizePhoneNumber(phoneNumber), in_dnc_list: inDncList });
 }));
 
@@ -101,7 +143,15 @@ router.delete('/remove', asyncHandler(async (req, res) => {
         return res.status(400).json({ error: 'Phone number is required' });
     }
     const sanitizedPhoneNumber = sanitizePhoneNumber(phoneNumber);
-    const reply = await client.del(sanitizedPhoneNumber);
+    let reply;
+    if (dbType === 'redis') {
+        reply = await client.del(sanitizedPhoneNumber);
+    } else {
+        const connection = await createDbConnection();
+        const [result] = await connection.execute('DELETE FROM phone_numbers WHERE phone_number = ?', [sanitizedPhoneNumber]);
+        await connection.end();
+        reply = result.affectedRows;
+    }
     if (reply === 0) {
         return res.status(404).json({ error: 'Phone number not found' });
     }
@@ -113,47 +163,63 @@ router.get('/', asyncHandler(async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 100;
 
-    const phoneNumbersData = await getPhoneNumbers(page, limit);
+    let phoneNumbersData;
+    if (dbType === 'redis') {
+        phoneNumbersData = await getPhoneNumbers(page, limit);
+    } else {
+        const startIndex = (page - 1) * limit;
+        const connection = await createDbConnection();
+        try {
+            const [rows] = await connection.execute('SELECT phone_number FROM phone_numbers LIMIT ? OFFSET ?', [limit, startIndex]);
+            const [countResult] = await connection.execute('SELECT COUNT(*) as total FROM phone_numbers');
+            const phoneNumbers = rows.map(row => row.phone_number);
+            const total = countResult[0].total;
+            phoneNumbersData = {
+                phone_numbers: phoneNumbers,
+                page,
+                limit,
+                total
+            };
+        } finally {
+            await connection.end();
+        }
+    }
     res.status(200).json(phoneNumbersData);
 }));
 
-// Endpoint to dump Redis data to CSV
+// Endpoint to dump data to CSV
 router.get('/dump-csv', asyncHandler(async (req, res) => {
-    let cursor = '0';
-    const allKeys = [];
+    let allKeys;
+    if (dbType === 'redis') {
+        let cursor = '0';
+        allKeys = [];
+        do {
+            const reply = await client.scan(cursor, 'MATCH', '*', 'COUNT', 1000);
+            cursor = reply.cursor.toString();
+            allKeys.push(...reply.keys);
+        } while (cursor !== '0');
+    } else {
+        const connection = await createDbConnection();
+        const [rows] = await connection.execute('SELECT phone_number FROM phone_numbers');
+        await connection.end();
+        allKeys = rows.map(row => row.phone_number);
+    }
 
-    do {
-        const reply = await client.scan(cursor, 'MATCH', '*', 'COUNT', 1000);
-        cursor = reply.cursor.toString();
-        allKeys.push(...reply.keys);
-    } while (cursor !== '0');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="dnc_dump.csv"');
 
-    const tempDir = os.tmpdir();
-    const filePath = path.join(tempDir, `redis_dump_${Date.now()}.csv`);
-
-    const csvWriter = createObjectCsvWriter({
-        path: filePath,
-        header: [
-            { id: 'phoneNumber', title: 'Phone Number' }
-        ]
+    const csvStringifier = createObjectCsvStringifier({
+        header: [{ id: 'phoneNumber', title: 'Phone Number' }]
     });
 
-    const data = allKeys.map(key => ({
-        phoneNumber: sanitizePhoneNumber(key)
-    }));
+    res.write(csvStringifier.getHeaderString());
 
-    await csvWriter.writeRecords(data);
+    for (const key of allKeys) {
+        const row = { phoneNumber: sanitizePhoneNumber(key) };
+        res.write(csvStringifier.stringifyRecords([row]));
+    }
 
-    res.download(filePath, 'redis_dump.csv', (err) => {
-        if (err) {
-            console.error('Error downloading file:', err);
-            res.status(500).send('Error downloading file');
-        }
-        // Delete the file after sending
-        fs.unlink(filePath, (unlinkErr) => {
-            if (unlinkErr) console.error('Error deleting file:', unlinkErr);
-        });
-    });
+    res.end();
 }));
 
 // Endpoint to add multiple phone numbers
@@ -162,31 +228,88 @@ router.post('/batch-add', asyncHandler(async (req, res) => {
     if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
         return res.status(400).json({ error: 'Phone numbers array is required' });
     }
-    const addedPhoneNumbers = [];
-    for (const phoneNumber of phoneNumbers) {
-        const exists = await isPhoneNumberExists(phoneNumber);
-        if (!exists) {
-            const sanitizedPhoneNumber = await addPhoneNumber(phoneNumber);
-            addedPhoneNumbers.push(sanitizedPhoneNumber);
+    const sanitizedPhoneNumbers = phoneNumbers.map(sanitizePhoneNumber);
+    if (dbType === 'redis') {
+        const multi = client.multi();
+        sanitizedPhoneNumbers.forEach(number => multi.set(number, 'true'));
+        await multi.exec();
+    } else {
+        const connection = await createDbConnection();
+        for (const phoneNumber of sanitizedPhoneNumbers) {
+            await connection.execute('INSERT IGNORE INTO phone_numbers (phone_number) VALUES (?)', [phoneNumber]);
         }
+        await connection.end();
     }
-    res.status(200).json({ added_phone_numbers: addedPhoneNumbers });
+    res.status(200).json({ added_phone_numbers: sanitizedPhoneNumbers });
 }));
 
 // Endpoint to scan multiple phone numbers
 router.post('/batch-scan', asyncHandler(async (req, res) => {
-    const { phone_numbers: phoneNumbers } = req.body;
-    if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+    try {
+      const { phone_numbers: phoneNumbers } = req.body;
+      if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
         return res.status(400).json({ error: 'Phone numbers array is required' });
+      }
+      
+      const sanitizedPhoneNumbers = phoneNumbers.map(sanitizePhoneNumber);
+      let matchedPhoneNumbers;
+      if (dbType === 'redis') {
+        const existingPhoneNumbers = await Promise.all(sanitizedPhoneNumbers.map(isPhoneNumberExists));
+        matchedPhoneNumbers = sanitizedPhoneNumbers.filter((_, index) => existingPhoneNumbers[index]);
+      } else {
+        const existingPhoneNumbers = await Promise.all(sanitizedPhoneNumbers.map(isPhoneNumberExistsInDb));
+        matchedPhoneNumbers = sanitizedPhoneNumbers.filter((_, index) => existingPhoneNumbers[index]);
+      }
+  
+      // Ensure matchedPhoneNumbers contains unique values
+      const uniqueMatchedPhoneNumbers = [...new Set(matchedPhoneNumbers)];
+      
+      res.status(200).json({ matched_phone_numbers: uniqueMatchedPhoneNumbers });
+    } catch (error) {
+      console.error('Error in /batch-scan endpoint:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
     }
-    const matchedPhoneNumbers = [];
-    for (const phoneNumber of phoneNumbers) {
-        const exists = await isPhoneNumberExists(phoneNumber);
-        if (exists) {
-            matchedPhoneNumbers.push(sanitizePhoneNumber(phoneNumber));
-        }
-    }
-    res.status(200).json({ matched_phone_numbers: matchedPhoneNumbers });
-}));
+  }));
 
+// Endpoint to sync data between Redis and the database
+router.post('/sync', asyncHandler(async (req, res) => {
+    try {
+        if (!client.isOpen) {
+            await client.connect();
+          }
+        console.log('Starting sync process');
+    if (dbType === 'redis') {
+        console.log('Syncing from Redis to database');
+      // Sync from Redis to the database
+      let cursor = '0';
+      const connection = await createDbConnection();
+      do {
+       
+        const reply = await client.scan(cursor, 'MATCH', '*', 'COUNT', 1000);
+        cursor = reply.cursor.toString();
+        const phoneNumbers = reply.keys.map(sanitizePhoneNumber);
+        for (const phoneNumber of phoneNumbers) {
+          await connection.execute('INSERT IGNORE INTO phone_numbers (phone_number) VALUES (?)', [phoneNumber]);
+        }
+      } while (cursor !== '0');
+      await connection.end();
+    } else {
+        console.log('Syncing from database to Redis');
+      // Sync from the database to Redis
+      const connection = await createDbConnection();
+      const [rows] = await connection.execute('SELECT phone_number FROM phone_numbers');
+      await connection.end();
+      const multi = client.multi();
+      rows.forEach(row => multi.set(row.phone_number, 'true'));
+      await multi.exec();
+    }
+    console.log('Sync process completed');
+    res.status(200).json({ message: 'Data synced successfully' });
+    } catch (error) {
+        console.error('Sync error:', error);
+        res.status(500).json({ error: 'Sync failed', details: error.message, stack: error.stack });
+    }
+  }));
+
+  
 module.exports = router;

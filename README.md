@@ -1,6 +1,6 @@
-# dnclear
+# DNClear
 
-**dnclear** is a high-performance API for managing Do Not Call (DNC) lists using Express, Redis, Node.js, and PM2. This application provides a robust solution for adding, checking, removing, and listing phone numbers in a DNC list, with seamless integration capabilities for services like Go High Level (GHL).
+**DNClear** is a high-performance API for managing Do Not Call (DNC) lists using Express, Redis, Node.js, and PM2. This application provides a robust solution for adding, checking, removing, and listing phone numbers in a DNC list, with seamless integration capabilities for services like Go High Level (GHL).
 
 <p align="center">
   <img src="img/DNClear.png" alt="DNClear Image">
@@ -17,39 +17,67 @@
 - [Go High Level (GHL) Integration](#go-high-level-ghl-integration)
 - [Process Management with PM2](#process-management-with-pm2)
 - [Error Handling](#error-handling)
+- [Testing](#testing)
+- [SDK Implementations](#sdk-implementations)
+- [Database Support](#database-support)
+- [Sync Endpoint](#sync-endpoint)
+- [Redis Storage Limits and Performance](#redis-storage-limits-and-performance)
 - [Contributing](#contributing)
 - [License](#license)
 
+## Quick Start
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/saintpetejackboy/dnclear.git
+   cd dnclear
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Set up your environment variables in `/var/www/envfiles/dnclear.env`.
+
+4. Start the server:
+   ```bash
+   npm start
+   ```
+
+5. The API is now running at `http://localhost:3131`.
+
+For more detailed instructions, see the [Installation](#installation) and [Configuration](#configuration) sections.
+
 ## Features
 
-- Add, check, remove, and list phone numbers in the DNC list
-- High-performance data storage and retrieval using Redis with paging
-- Asynchronous processing for efficient handling of concurrent requests
-- Secure API authentication
-- Integration with Go High Level (GHL) webhooks
-- Robust error handling and logging
-- Easy deployment and management using 
-- CSV Export / Dump
-- Batch adding and scanning
+- Add, check, remove, and list phone numbers in the DNC list.
+- High-performance data storage and retrieval using Redis with paging.
+- Asynchronous processing for efficient handling of concurrent requests.
+- Secure API authentication using custom middleware.
+- Integration with Go High Level (GHL) webhooks.
+- Robust error handling and logging.
+- Easy deployment and management using PM2.
+- CSV Export / Dump functionality.
+- Batch adding and scanning of multiple phone numbers.
+- Phone number sanitization and standardization.
+- Pagination support for retrieving large datasets.
+- Centralized configuration management.
+- Cross-platform compatibility (Windows, macOS, Linux).
+- SDK implementations in multiple languages (JavaScript, PHP, Python).
+- Comprehensive unit testing setup with Jest.
+- Docker support for containerized deployment (if applicable).
 
 ## Tech Stack
 
-- **Node.js**: A JavaScript runtime for server-side scripting
-- **Express.js**: A minimal and flexible Node.js web application framework
-- **Redis**: An in-memory data structure store for high-speed data operations
-- **PM2**: A production process manager for Node.js applications
-
-## Packages
-
-- **dotenv**: For managing environment variables
-- **csv-writer**: A library for creating CSV files
-- **body-parser**: Middleware for parsing incoming request bodies
-
-### Node.js Core Modules
-
-- **fs**: File System module for file operations
-- **path**: Module for handling file paths
-- **os**: Operating System module for OS-related operations
+- **Node.js**: JavaScript runtime for server-side scripting.
+- **Express.js**: Minimal and flexible Node.js web application framework.
+- **Redis**: In-memory data structure store for high-speed data operations.
+- **PM2**: Production process manager for Node.js applications.
+- **Jest**: JavaScript testing framework focused on simplicity.
+- **Supertest**: Library for testing HTTP servers.
+- **Axios**: Promise-based HTTP client for the browser and Node.js (used in SDK).
+- **cURL**: Command-line tool and library for transferring data with URLs (used in PHP SDK).
 
 ## Installation
 
@@ -104,69 +132,19 @@ The server will run at `http://localhost:3131` by default.
 ### Batch Add Phone Numbers
 - **POST** `/dnc/batch-add`
 - Body: `{"phone_numbers": ["1234567890", "9876543210", ...]}`
-- Adds multiple phone numbers to the DNC list in a single request.
-- Returns the successfully added phone numbers.
-
-Example request:
-```bash
-curl -X POST http://localhost:3131/dnc/batch-add -H "x-api-key: your_secret_key" -H "Content-Type: application/json" -d '{"phone_numbers": ["222-222-2222", "333-333-3333", "444-444-4444"]}'
-```
-
-Example response:
-```json
-{
-  "added_phone_numbers": [
-    "2222222222",
-    "3333333333",
-    "4444444444"
-  ]
-}
-```
 
 ### Batch Scan Phone Numbers
 - **POST** `/dnc/batch-scan`
 - Body: `{"phone_numbers": ["1234567890", "9876543210", ...]}`
-- Scans multiple phone numbers against the DNC list and returns the matched numbers.
-- The response includes only the phone numbers found in the DNC list.
-
-Example request:
-```bash
-curl -X POST http://localhost:3131/dnc/batch-scan -H "x-api-key: your_secret_key" -H "Content-Type: application/json" -d '{"phone_numbers": ["222-222-2222", "333-333-3333", "444-444-4444"]}'
-```
-
-Example response:
-```json
-{
-  "matched_phone_numbers": [
-    "2222222222",
-    "3333333333"
-  ]
-}
-```
-
-These batch endpoints allow you to efficiently process multiple phone numbers at once, improving the performance of your application when dealing with large batches of numbers. They complement the existing single phone number endpoints, providing flexibility in how you interact with the DNC list.
 
 ### Dump Redis data to CSV
 - **GET** `/dump-csv`
-- Generates a CSV file containing all phone numbers stored in Redis
-- The file is automatically downloaded and then deleted from the server
-- No authentication required
 
-This endpoint allows you to export all phone numbers from your DNC list into a CSV file. It's useful for backup purposes or for analyzing your DNC data offline. The process is as follows:
-
-1. The endpoint scans all keys in Redis.
-2. It creates a temporary CSV file with a single column for phone numbers.
-3. All phone numbers are sanitized and written to the CSV file.
-4. The file is sent to the client for download.
-5. After the download is complete, the file is automatically deleted from the server.
-
-Note: Depending on the size of your DNC list, this operation might take some time to complete. For very large datasets, consider implementing pagination or using a background job for CSV generation.
-
-#### All endpoints require the `x-api-key` header for authentication.
+All endpoints require the `x-api-key` header for authentication.
 
 ## Go High Level (GHL) Integration
 
-**dnclear** provides a webhook endpoint for integration with GHL automations:
+**DNClear** provides a webhook endpoint for integration with GHL automations:
 
 - **POST** `/dnc/webhook/ghl`
 - Body: `{"phone": "1234567890"}`
@@ -182,7 +160,7 @@ To ensure high availability and easy management, use PM2:
    npm install pm2 -g
    ```
 
-2. Start dnclear with PM2:
+2. Start DNClear with PM2:
    ```bash
    pm2 start dnclear.js --name dnclear
    ```
@@ -200,52 +178,126 @@ To ensure high availability and easy management, use PM2:
 
 ## Error Handling
 
-**dnclear** implements centralized error handling to provide consistent error responses across the application. Here are some key aspects of the error handling:
+**DNClear** implements centralized error handling to provide consistent error responses across the application. Key aspects include:
 
-- **400 Bad Request**: Returned when required data (like a phone number) is missing.
-- **403 Forbidden**: Returned for invalid API keys.
-- **404 Not Found**: Returned when trying to remove a non-existent phone number.
-- **409 Conflict**: Returned when trying to add a phone number that already exists in the DNC list.
-- **500 Internal Server Error**: Returned for unexpected server errors.
+- **400 Bad Request**: Missing required data.
+- **403 Forbidden**: Invalid API keys.
+- **404 Not Found**: Non-existent phone number removal attempt.
+- **409 Conflict**: Adding an already existing phone number.
+- **500 Internal Server Error**: Unexpected server errors.
 
-### Special Handling for GHL Webhook
+Special handling for GHL webhook ensures workflows continue smoothly by returning a 200 OK status for existing numbers.
 
-The GHL webhook endpoint (`/dnc/webhook/ghl`) has a unique error handling approach:
+## Testing
 
-- If the phone number already exists in the DNC list, it returns a 200 OK status with a message indicating the number already exists. This ensures that the third-party service (GHL) doesn't interpret this as an error, allowing their workflows to continue smoothly.
-- This approach prevents unnecessary alerts or retries from the GHL system while still accurately managing the DNC list.
+**DNClear** includes a comprehensive suite of unit tests using Jest and Supertest.
 
-Example response for an existing number:
-```json
-{
-  "message": "Phone number already exists"
-}
+### Test Setup
+
+- **Jest**: For running tests and providing assertions.
+- **Supertest**: For making HTTP requests to the Express app.
+- **dotenv**: For loading environment variables in the test environment.
+
+### Test Coverage
+
+Tests cover all main API endpoints and functionalities, including adding, checking, removing, and listing phone numbers, handling GHL webhooks, and batch operations.
+
+### Running Tests
+
+To run the test suite, use the following command:
+```bash
+npm test
 ```
 
-This error handling strategy ensures robust operation of the DNC list while providing seamless integration with GHL so the contacts do not become "stuck" in a workflow.
+Integrate these tests into your CI/CD pipeline to ensure that all changes pass the test suite before deployment.
+
+## SDK Implementations
+
+This project includes SDK implementations for multiple programming languages to facilitate easy integration with the DNClear API. You can find these implementations in the `sdk` directory:
+
+- **JavaScript (Node.js)**: Located in `sdk/js/dnclear-client.js`
+- **PHP**: Located in `sdk/php/dnclear-client.php`
+- **Python**: Located in `sdk/python/python-client.py`
+
+Each SDK provides functions corresponding to the API endpoints, simplifying integration.
+
+## Database Support
+
+**DNClear** supports using a database for storing phone numbers in addition to Redis. Configure the database connection using the following environment variables:
+
+- `DB_TYPE`: Type of the database (e.g., `'mysql'`, `'postgres'`).
+- `DB_HOST`: Hostname or IP address of the database server.
+- `DB_PORT`: Port number of the database server.
+- `DB_NAME`: Name of the database.
+- `DB_USER`: Username for connecting to the database.
+- `DB_PASSWORD`: Password for connecting to the database.
+
+To use a database, set the `DB_TYPE` environment variable to the desired type and provide the necessary connection details.
+
+### Database Schema
+
+Ensure you have a table named `phone_numbers` with the following schema:
+```sql
+CREATE TABLE phone_numbers (
+  phone_number VARCHAR(10) PRIMARY KEY
+);
+```
+
+### Database-related Test Cases
+
+Test cases cover adding, checking, removing, and listing phone numbers, as well as syncing data between Redis and the database.
+
+## Sync Endpoint
+
+A new endpoint to sync data between Redis and the database:
+
+- **POST** `/dnc/sync`
+
+Synchronizes phone numbers stored in Redis with the database based on the `dbType` configuration.
 
 ## Redis Storage Limits and Performance
 
-When using Redis to store 10-digit phone numbers, both storage capacity and retrieval performance are critical considerations. Here are the expectations based on different RAM limits:
+When using Redis, both storage capacity and retrieval performance are critical:
 
-- **256MB RAM**: Approximately 4.47 million phone numbers
-- **500MB RAM**: Approximately 8.73 million phone numbers
-- **1GB RAM**: Approximately 17.90 million phone numbers
+- **256MB RAM**: Approximately 4.47 million phone numbers.
+- **500MB RAM**: Approximately 8.73 million phone numbers.
+- **1GB RAM**: Approximately 17.90 million phone numbers.
 
 ### Performance Expectations
 
-Redis is known for its high performance and low latency. Regardless of the number of phone numbers stored, you can expect:
-
-- **Average Retrieval Time**: Less than 1 millisecond per request
-- **Load Handling**: Tens of thousands of requests per second under optimal conditions
-
-These performance metrics make Redis an excellent choice for managing large volumes of phone numbers with quick and efficient data retrieval.
+Redis provides high performance and low latency, with average retrieval times of less than 1 millisecond per request and the ability to handle tens of thousands of requests per second.
 
 ## Contributing
 
-Contributions are welcome! Please fork the repository and submit a pull request with your improvements.
+Contributions are welcome! Fork the repository and submit a pull request with your improvements.
+
+
 
 ## License
 
 This project is licensed under the MIT License.
 
+---
+
+### Discussion: Redis vs. Other Databases
+
+When choosing between Redis and other databases for managing DNC lists, consider the following differences:
+
+**Redis**:
+- **Performance**: Extremely fast due to in-memory storage.
+- **Scalability**: Can handle a large number of requests per second.
+- **Data Persistence**: Limited compared to traditional databases, as it is primarily an in-memory store.
+- **Use Cases**: Ideal for real-time applications, caching, and quick data retrieval.
+
+**Relational Databases (e.g., MySQL, PostgreSQL)**:
+- **Data Persistence**: Strong persistence and transactional integrity.
+- **Complex Queries**: Supports complex SQL queries and joins.
+- **Scalability**: Can be scaled vertically and horizontally but may require more management.
+- **Use Cases**: Suitable for applications requiring complex data relationships and integrity.
+
+**NoSQL Databases (e.g., MongoDB, Cassandra)**:
+- **Flexibility**: Schema-less design allows for flexible and hierarchical data storage.
+- **Scalability**: Designed for horizontal scalability and handling large datasets.
+- **Use Cases**: Great for applications requiring flexible data models, like content management systems.
+
+In summary, Redis is preferred for its speed and simplicity in handling large volumes of data with low latency. Traditional relational databases provide robust data integrity and complex querying capabilities. NoSQL databases offer flexibility and scalability for unstructured data. The choice depends on your specific use case and requirements.
